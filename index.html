@@ -123,6 +123,10 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .pw input{text-align:center;font:700 16px "Chakra Petch",system-ui,sans-serif;border:0}
 .mn{font:600 16px "Chakra Petch",system-ui,sans-serif}
 .mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:0 10px}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:420px;margin:0 auto;z-index:20;
+  background:var(--ink);color:var(--card);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14px}
+.toast span{min-width:0;overflow-wrap:anywhere}
+.toast button{color:var(--yellow);font-weight:600;padding:6px 4px;flex:none}
 </style>
 </head>
 <body>
@@ -154,7 +158,7 @@ function blank(){return {updated:0,name:"",level:"1",cls:"",money:"0",badges:"",
 function clone(o){return JSON.parse(JSON.stringify(o))}
 function normalize(s){var b=blank();for(var k in b){if(s[k]===undefined||s[k]===null)s[k]=b[k]}
   if(!Array.isArray(s.team))s.team=b.team; if(!Array.isArray(s.actions))s.actions=b.actions; if(!Array.isArray(s.bag))s.bag=b.bag;
-  s.bag.forEach(function(c){if(!Array.isArray(c.items))c.items=[]});s.team.forEach(mon);return s}
+  s.bag.forEach(function(c){if(!Array.isArray(c.items))c.items=[];c.items=c.items.filter(function(it){return it&&Number(it.q)>0})});s.team.forEach(mon);return s}
 
 var state=blank(), db=null, ref=null, timer=null, saving=false, again=false, dirty=false, filterText="";
 try{state=normalize(JSON.parse(document.getElementById("seed").textContent))}catch(e){}
@@ -162,6 +166,14 @@ try{var c=localStorage.getItem(LS); if(c){c=normalize(JSON.parse(c)); if((c.upda
 
 var statusEl=document.getElementById("status");
 function status(t){statusEl.textContent=t}
+var toastEl=null,toastT=null;
+function toast(it,c,ii){if(toastEl)toastEl.remove();clearTimeout(toastT);
+  toastEl=document.createElement("div");toastEl.className="toast";toastEl.setAttribute("role","status");
+  var s=document.createElement("span");s.textContent="Removed "+(it.n||"blank item");
+  var u=document.createElement("button");u.type="button";u.textContent="Undo";
+  u.addEventListener("click",function(){it.q=1;if(state.bag.indexOf(c)<0)state.bag.push(c);c.items.splice(Math.min(ii,c.items.length),0,it);touch();render();toastEl.remove();toastEl=null});
+  toastEl.appendChild(s);toastEl.appendChild(u);document.body.appendChild(toastEl);
+  toastT=setTimeout(function(){if(toastEl){toastEl.remove();toastEl=null}},6000)}
 
 function touch(){state.updated=Date.now();dirty=true;
   try{localStorage.setItem(LS,JSON.stringify(state));status("Saved on this device")}
@@ -229,7 +241,7 @@ function render(focusSel){
       var row=el("div",{cls:"item"+(Number(it.q)>0?"":" out"),"data-i":ci+"-"+ii});
       var note=field(it,"note",{cls:"note"+(it.note?"":" empty"),label:"Note",ph:"Add a note",after:function(n){n.classList.toggle("empty",!n.value)}});
       var out=el("output",{text:String(it.q)});
-      function bump(d){it.q=Math.max(0,(Number(it.q)||0)+d);out.textContent=String(it.q);row.classList.toggle("out",it.q<=0);touch()}
+      function bump(d){it.q=Math.max(0,(Number(it.q)||0)+d);if(it.q<=0){c.items.splice(ii,1);touch();render();toast(it,c,ii);return}out.textContent=String(it.q);touch()}
       var minus=el("button",{type:"button","aria-label":"Use one "+(it.n||"item"),text:"−",on:{click:function(){bump(-1)}}});
       var plus=el("button",{type:"button","aria-label":"Add one "+(it.n||"item"),text:"+",on:{click:function(){bump(1)}}});
       var del=el("button",{cls:"del",type:"button","aria-label":"Remove "+(it.n||"item"),text:"×"});
